@@ -7,9 +7,14 @@ load_dotenv()
 # Access environment variables
 snow_creds={
     'user': os.getenv('snow.user'),
-    'password' : os.environ['snow.password'],
+    'password' : os.getenv('snow.password'),
     'account': os.getenv('snow.account'),
-    'warehouse' : os.environ['snow.warehouse'],
+    'warehouse' : os.getenv('snow.warehouse'),
     'database': os.getenv('snow.database'),
-    'schema' : os.environ['snow.schema']
+    'schema' : os.getenv('snow.schema')
+}
+
+kaggle_creds={
+    'username': os.getenv('kaggle.username'),
+    'key': os.getenv('kaggle.key')
 }

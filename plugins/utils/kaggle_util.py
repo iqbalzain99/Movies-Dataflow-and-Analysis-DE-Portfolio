@@ -1,5 +1,9 @@
 import kaggle
 import os
+import plugins.config.creds_config as conf
+
+os.environ['KAGGLE_USERNAME'] = conf.kaggle_creds['username']
+os.environ['KAGGLE_KEY'] = conf.kaggle_creds['key']
 
 def download_kaggle_dataset(dataset_name, download_path):
     """

@@ -3,3 +3,4 @@ reference
 logs
 .env
 __pycache__/
+metabase_plugins
