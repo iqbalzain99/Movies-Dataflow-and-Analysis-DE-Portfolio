@@ -1,1 +1,0 @@
-from .creds_config import snow_creds

@@ -1,3 +1,5 @@
-main/assets/data
+plugins/assets/data
 reference
+logs
 .env
+__pycache__/

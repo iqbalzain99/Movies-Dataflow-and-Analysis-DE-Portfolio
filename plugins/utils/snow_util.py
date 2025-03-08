@@ -1,5 +1,4 @@
 import snowflake.connector
-import config.creds_config as conf
 
 
 def fetch_data(query, creds):
