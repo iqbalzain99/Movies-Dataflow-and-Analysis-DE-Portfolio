@@ -17,13 +17,13 @@ def import_csvs_and_merge(folder_path):
             print(f"Folder doesn't exist '{folder_path}': {e}")
 
         # Load the dataset
-        return pd.concat([ pd.read_csv(file_name) for file_name in get_file_names(folder_path) ])
+        return pd.concat([ pd.read_csv(file_name) for file_name in _get_file_names(folder_path) ])
         
 
     except Exception as e:
         print(f"Error loading dataset from '{folder_path}': {e}")
 
-def get_file_names(folder_path):
+def _get_file_names(folder_path):
     """Returns a list of file names in the given folder."""
     file_names = []
     for item in os.listdir(folder_path):

@@ -18,3 +18,9 @@ kaggle_creds={
     'username': os.getenv('kaggle.username'),
     'key': os.getenv('kaggle.key')
 }
+
+aws_creds={
+    'access_key': os.getenv('aws.access_key'),
+    'secret_key': os.getenv('aws.secret_key'),
+    'region': os.getenv('aws.region')
+}
