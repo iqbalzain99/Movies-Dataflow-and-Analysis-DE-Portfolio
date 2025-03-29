@@ -1,15 +1,16 @@
 import pandas as pd
 import numpy as np
 import plugins.utils as utils
-from plugins.config import aws_creds
+from plugins.config import aws_creds, snow_creds
 from typing import Optional
 import ast
 
-class movie_dataset_etl:
-    def __init__(self, kaggle_path = "rounakbanik/the-movies-dataset"):
-        # Initialize database connection
+class MovieDatasetEtl:
+    def __init__(self, snow_db, snow_schema, kaggle_path = "rounakbanik/the-movies-dataset"):
+        """Save path of the data and initialize S3ParquetHandler"""
         self.kaggle_path = kaggle_path
         self.s3_handler = utils.S3ParquetHandler(aws_creds)
+        self.snow_handler = utils.SnowflakeHandler(snow_creds, snow_db, snow_schema)
 
     def extract(self, file_dictionary: str):
         """
@@ -83,7 +84,7 @@ class movie_dataset_etl:
             'ratings': ratings_cleaned
         }
 
-    def load(self, df_lists: dict):
+    def load(self, df_lists: dict, snow_stage: str):
         """
         Load all of the dictionary of the DataFrame into amazon S3.
         
@@ -99,18 +100,17 @@ class movie_dataset_etl:
                 # Write the DataFrame back to S3 as a Parquet file
                 self.s3_handler.write_parquet_to_s3(df, destination_bucket, destination_key)
                 print(f"Data successfully written to s3://{destination_bucket}/{destination_key}")
+            # Create table that needed
+            for name, df in df_lists.items():
+                self.snow_handler.create_table(name, df)
+                self.snow_handler.load(name, snow_stage, f"{name}.parquet")
             print("All of the data loaded successfully")
+            self.snow_handler.close()
         except Exception as e:
             print(f"Loading failed reason: {e}")
             return False
         
         return True
-
-    # def etl(self, file_path):
-    #     # Run the ETL process
-    #     df = self.extract(file_path)
-    #     transformed_df = self.transform(df)
-    #     self.load(transformed_df)
     
     def _transform_credits(self):
         """
