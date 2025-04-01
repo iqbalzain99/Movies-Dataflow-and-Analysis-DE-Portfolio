@@ -1,8 +1,9 @@
-###### Requirements with Version Specifiers ######`
+###### Requirements with Version Specifiers ######
 sqlalchemy
 pybase64
 numpy
 pandas
+kaggle==1.6.17
 psycopg2-binary
 requests
 boto3
@@ -16,5 +17,4 @@ sendgrid
 tqdm
 pysftp
 gspread
-pyarrow
-kaggle
+pyarrow==18.1.0

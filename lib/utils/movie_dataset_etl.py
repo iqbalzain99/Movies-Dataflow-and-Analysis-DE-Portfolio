@@ -1,7 +1,9 @@
 import pandas as pd
 import numpy as np
-import plugins.utils as utils
-from plugins.config import aws_creds, snow_creds
+from . import kaggle_util
+from . import s3_parquet_handler as s3_handler
+from . import snowflake_handler as snow_handler
+from .config.creds_config import aws_creds, snow_creds
 from typing import Optional
 import ast
 
@@ -9,8 +11,8 @@ class MovieDatasetEtl:
     def __init__(self, snow_db, snow_schema, kaggle_path = "rounakbanik/the-movies-dataset"):
         """Save path of the data and initialize S3ParquetHandler"""
         self.kaggle_path = kaggle_path
-        self.s3_handler = utils.S3ParquetHandler(aws_creds)
-        self.snow_handler = utils.SnowflakeHandler(snow_creds, snow_db, snow_schema)
+        self.s3_handler = s3_handler.S3ParquetHandler(aws_creds)
+        self.snow_handler = snow_handler.SnowflakeHandler(snow_creds, snow_db, snow_schema)
 
     def extract(self, file_dictionary: str):
         """
@@ -20,28 +22,28 @@ class MovieDatasetEtl:
             file_directory (str): Path to the directory containing CSV files
         
         Returns:
-            tuple: DataFrames for credits, keywords, links, movies_metadata, and ratings
+            dict: DataFrames for credits, keywords, links, movies_metadata, and ratings
         """
         
         # Download data from Kaggle or read from a local CSV file
-        utils.download_kaggle_dataset(self.kaggle_path, file_dictionary)
+        kaggle_util.download_kaggle_dataset(self.kaggle_path, file_dictionary)
         
         # Extract data from the CSV file
-        self.credits = pd.read_csv(f"{file_dictionary}/credits.csv")
-        self.keywords = pd.read_csv(f"{file_dictionary}/keywords.csv")
-        self.links = pd.read_csv(f"{file_dictionary}/links.csv")
-        self.movies_metadata = pd.read_csv(f"{file_dictionary}/movies_metadata.csv")
-        self.ratings = pd.read_csv(f"{file_dictionary}/ratings.csv")
+        credits = pd.read_csv(f"{file_dictionary}/credits.csv")
+        keywords = pd.read_csv(f"{file_dictionary}/keywords.csv")
+        links = pd.read_csv(f"{file_dictionary}/links.csv")
+        movies_metadata = pd.read_csv(f"{file_dictionary}/movies_metadata.csv")
+        ratings = pd.read_csv(f"{file_dictionary}/ratings.csv")
         
-        return (
-            self.credits, 
-            self.keywords, 
-            self.links, 
-            self.movies_metadata, 
-            self.ratings
-        )
+        return {
+            "credits": credits,
+            "keywords": keywords,
+            "links": links,
+            "movies_metadata": movies_metadata,
+            "ratings": ratings
+        }
 
-    def transform(self):
+    def transform(self, extracted: dict):
         """
         Transform and clean the extracted data. Got additional DataFrame from the as described:
         credits 
@@ -49,7 +51,8 @@ class MovieDatasetEtl:
             - Removed: credits
         movies_metadata 
             - New: belongs_to_collection, genres, production_companies, production_countries, spoken_languages
-        
+        Args:
+            extracted (str): Extracted dictionary of DataFrame
         Returns:
             tuple: DataFrames for 
                 cast, crew, keywords, links, movies_metadata, 
@@ -57,31 +60,31 @@ class MovieDatasetEtl:
                 production_countries, spoken_languages, and ratings
         """
         # Transform the data as needed
-        cast_cleaned, crew_cleaned = self._transform_credits()
-        keywords_cleaned = self._transform_keywords()
-        links_cleaned = self._transform_links()
-        metadata_transform_result = self._transform_movies_metadata()
-        movies_metadata_cleaned = metadata_transform_result['movies_metadata']
-        belongs_to_collection_cleaned = metadata_transform_result['belongs_to_collection']
-        genres_cleaned = metadata_transform_result['genres'] 
-        production_companies_cleaned = metadata_transform_result['production_companies'] 
-        production_countries_cleaned = metadata_transform_result['production_countries'] 
-        spoken_languages_cleaned = metadata_transform_result['spoken_languages']
+        cast_cleaned, crew_cleaned = self._transform_credits(extracted["credits"])
+        keywords_cleaned = self._transform_keywords(extracted["keywords"])
+        links_cleaned = self._transform_links(extracted["links"])
+        metadata_transform_result = self._transform_movies_metadata(extracted["movies_metadata"])
+        movies_metadata_cleaned = metadata_transform_result["movies_metadata"]
+        belongs_to_collection_cleaned = metadata_transform_result["belongs_to_collection"]
+        genres_cleaned = metadata_transform_result["genres"] 
+        production_companies_cleaned = metadata_transform_result["production_companies"] 
+        production_countries_cleaned = metadata_transform_result["production_countries"] 
+        spoken_languages_cleaned = metadata_transform_result["spoken_languages"]
         # Ratings are good to go as is
-        ratings_cleaned = self._transform_ratings()
+        ratings_cleaned = self._transform_ratings(extracted["ratings"])
         
         return {
-            'cast': cast_cleaned,
-            'crew': crew_cleaned,
-            'keywords': keywords_cleaned,
-            'links': links_cleaned,
-            'movies_metadata': movies_metadata_cleaned,
-            'belongs_to_collection': belongs_to_collection_cleaned,
-            'genres': genres_cleaned,
-            'production_companies': production_companies_cleaned,
-            'production_countries': production_countries_cleaned,
-            'spoken_languages': spoken_languages_cleaned,
-            'ratings': ratings_cleaned
+            "cast": cast_cleaned,
+            "crew": crew_cleaned,
+            "keywords": keywords_cleaned,
+            "links": links_cleaned,
+            "movies_metadata": movies_metadata_cleaned,
+            "belongs_to_collection": belongs_to_collection_cleaned,
+            "genres": genres_cleaned,
+            "production_companies": production_companies_cleaned,
+            "production_countries": production_countries_cleaned,
+            "spoken_languages": spoken_languages_cleaned,
+            "ratings": ratings_cleaned
         }
 
     def load(self, df_lists: dict, snow_stage: str):
@@ -105,21 +108,85 @@ class MovieDatasetEtl:
                 self.snow_handler.create_table(name, df)
                 self.snow_handler.load(name, snow_stage, f"{name}.parquet")
             print("All of the data loaded successfully")
-            self.snow_handler.close()
         except Exception as e:
             print(f"Loading failed reason: {e}")
             return False
         
         return True
     
-    def _transform_credits(self):
+    def transform_to_mart(self):
+        """
+        Create and move data into datamart
+        """
+        queries = [
+            """
+            CREATE OR REPLACE TABLE MART.MOVIE_FIN_MART AS
+            SELECT 
+                BUDGET, 
+                TMDB_ID, 
+                ORIGINAL_TITLE, 
+                ORIGINAL_LANGUAGE, 
+                RELEASE_DATE, 
+                REVENUE
+            FROM
+                MOVIE_BASE.MOVIES_METADATA
+            WHERE BUDGET > 1000 AND REVENUE != 0;
+            """,
+            """
+            CREATE OR REPLACE TABLE MART.MOVIE_GENRE_MART AS
+            SELECT 
+                g.NAME as GENRE_NAME, 
+                g.ID as GENRE_ID,
+                AVG(mm.POPULARITY) as AVG_POPULARITY,
+                AVG(mm.RUNTIME) as AVG_RUNTIME,
+                AVG(mm.VOTE_AVERAGE) as AVG_VOTE,
+                SUM(mm.VOTE_COUNT) as SUM_VOTE
+            FROM
+                MOVIE_BASE.GENRES g
+            INNER JOIN
+                MOVIE_BASE.MOVIES_METADATA mm ON g.tmdb_id = mm.tmdb_id
+            GROUP BY g.NAME, g.ID;
+            """,
+            """
+            CREATE OR REPLACE TABLE MART.PROD_COMPANY_YEARLY_MART AS
+            SELECT
+                pc.ID as PROD_ID,
+                pc.NAME as PROD_NAME,
+                mm.RELEASE_DATE as RELEASE_DATE,
+                SUM(mm.BUDGET) as TOTAL_BUDGET,
+                SUM(mm.REVENUE) as TOTAL_REVENUE,
+                AVG(mm.RUNTIME) as AVG_RUNTIME,
+                AVG(mm.VOTE_AVERAGE) as AVG_VOTE,
+                SUM(mm.VOTE_COUNT) as SUM_VOTE    
+            FROM 
+                MOVIE_BASE.PRODUCTION_COMPANIES pc
+            INNER JOIN
+                MOVIE_BASE.MOVIES_METADATA mm ON pc.tmdb_id = mm.tmdb_id
+            WHERE
+                mm.BUDGET > 1000 AND mm.REVENUE != 0
+            GROUP BY pc.ID, pc.NAME, mm.RELEASE_DATE;
+            """
+        ]
+        try:
+            # Load the data into aws s3
+            for query in queries:
+                # Execute each query to move table into datamart
+                self.snow_handler.execute_query(query)
+            print("Datamart Transform Sucessfully")
+        except Exception as e:
+            print(f"Loading failed reason: {e}")
+            return False
+    
+    def _transform_credits(self, raw_df: pd.DataFrame):
         """
         Transform and clean the credits data. 
         
+        Args:
+            raw_df (str): Unprocessed dataframe (raw)
         Returns:
             tuple: DataFrames for cast and crew
         """
-        df = self.credits.copy()
+        df = raw_df.copy()
         
         # Rename column using the same convention
         df.rename(columns={"id": "tmdb_id"}, inplace=True)
@@ -134,14 +201,16 @@ class MovieDatasetEtl:
         
         return (cast, crew)
     
-    def _transform_keywords(self):
+    def _transform_keywords(self, raw_df: pd.DataFrame):
         """
         Transform and clean the keywords data. 
         
+        Args:
+            raw_df (str): Unprocessed dataframe (raw)
         Returns:
             tuple: DataFrames
         """
-        df = self.keywords.copy()
+        df = raw_df.copy()
         
         # Rename column using the same convention
         df.rename(columns={"id": "tmdb_id"}, inplace=True)
@@ -154,14 +223,16 @@ class MovieDatasetEtl:
         
         return df
 
-    def _transform_links(self):
+    def _transform_links(self, raw_df: pd.DataFrame):
         """
         Transform and clean the links data. 
         
+        Args:
+            raw_df (str): Unprocessed dataframe (raw)
         Returns:
             tuple: DataFrames
         """
-        df = self.links.copy()
+        df = raw_df.copy()
         
         # Rename column using the same convention
         new_name = {
@@ -177,16 +248,18 @@ class MovieDatasetEtl:
         return df
 
 
-    def _transform_movies_metadata(self):
+    def _transform_movies_metadata(self, raw_df: pd.DataFrame):
         """
         Transform and clean the movies_metadata. 
         
+        Args:
+            raw_df (str): Unprocessed dataframe (raw)
         Returns:
             tuple: DataFrames of movies_metadata, 
                 belongs_to_collection, genres, production_companies, 
                 production_countries, spoken_languages
         """
-        df = self.movies_metadata.copy()
+        df = raw_df.copy()
         
         # Rename column using the same convention
         df.rename(columns={"id": "tmdb_id"}, inplace=True)
@@ -241,22 +314,24 @@ class MovieDatasetEtl:
         df.drop(columns=["spoken_languages"], inplace=True)
         
         return {
-            'movies_metadata': df,
-            'belongs_to_collection': belongs_to_collection,
-            'genres': genres,
-            'production_companies': production_companies,
-            'production_countries': production_countries,
-            'spoken_languages': spoken_languages
+            "movies_metadata": df,
+            "belongs_to_collection": belongs_to_collection,
+            "genres": genres,
+            "production_companies": production_companies,
+            "production_countries": production_countries,
+            "spoken_languages": spoken_languages
         }
     
-    def _transform_ratings(self):
+    def _transform_ratings(self, raw_df: pd.DataFrame):
         """
         Transform and clean the ratings data. 
         
+        Args:
+            raw_df (str): Unprocessed dataframe (raw)
         Returns:
             tuple: DataFrames
         """
-        df = self.ratings.copy()
+        df = raw_df.copy()
         
         # Rename column using the same convention
         new_name = {

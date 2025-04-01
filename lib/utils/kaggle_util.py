@@ -1,8 +1,8 @@
 import os
-import plugins.config.creds_config as conf
+from .config.creds_config import kaggle_creds
 
-os.environ['KAGGLE_USERNAME'] = conf.kaggle_creds['username']
-os.environ['KAGGLE_KEY'] = conf.kaggle_creds['key']
+os.environ['KAGGLE_USERNAME'] = kaggle_creds['username']
+os.environ['KAGGLE_KEY'] = kaggle_creds['key']
 
 import kaggle
 

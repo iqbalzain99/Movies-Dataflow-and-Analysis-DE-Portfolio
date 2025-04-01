@@ -1,4 +1,4 @@
-plugins/assets/data
+lib/assets/data
 reference
 logs
 .env

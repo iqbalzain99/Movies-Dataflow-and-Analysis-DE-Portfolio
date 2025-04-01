@@ -1,4 +1,3 @@
-import os
 import io
 import boto3
 import pandas as pd
@@ -29,9 +28,11 @@ class S3ParquetHandler:
         """
         Read a Parquet file from S3 and load it into a pandas DataFrame.
         
-        :param bucket: Name of the S3 bucket.
-        :param key: Object key (path) for the Parquet file in the bucket.
-        :return: pandas DataFrame with the loaded data.
+        Args:
+            bucket (str): Name of the S3 bucket.
+            key (str): Object key (path) for the Parquet file in the bucket.
+        Returns:
+            pandas DataFrame with the loaded data.
         """
         try:
             response = self.s3_client.get_object(Bucket=bucket, Key=key)
@@ -46,10 +47,11 @@ class S3ParquetHandler:
         """
         Write a pandas DataFrame to S3 as a Parquet file.
         
-        :param df: pandas DataFrame to be written.
-        :param bucket: Name of the S3 bucket.
-        :param key: Object key (path) where the Parquet file will be stored.
-        :param index: Whether to include the DataFrame's index in the output file.
+        Args:
+            df (pd.DataFrame): Data to be written
+            bucket (str): Name of the S3 bucket.
+            key (str): Object key (path) where the Parquet file will be stored.
+            index (bool): Whether to include the DataFrame's index in the output file.
         """
         try:
             buffer = io.BytesIO()
