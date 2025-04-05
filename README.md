@@ -68,8 +68,11 @@ This project implements a complete data pipeline that:
    git clone https://github.com/iqbalzain99/Movies-Dataflow-and-Analysis-DE-Portfolio.git
    cd Movies-Dataflow-and-Analysis-DE-Portfolio
    ```
+2. **Configure Cloud Environment**
 
-2. **Configure Environment**
+   In this process, you need to ensure that access to the Cloud Resource is open, Bucket on S3 is created, and Snowflake Stage is set up.
+
+4. **Configure Project Environment**
 
    ```bash
    cp .env.example .env
@@ -80,14 +83,14 @@ This project implements a complete data pipeline that:
    # - Airflow
    ```
 
-3. **Build & Start Services**
+5. **Build & Start Services**
 
    ```bash
    docker-compose build
    docker-compose up -d
    ```
 
-4. **Access Services**
+6. **Access Services**
    - Airflow: `http://<EC2-IP>:8080` (airflow/airflow)
    - Metabase: `http://<EC2-IP>:3000`
 
