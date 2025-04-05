@@ -38,7 +38,7 @@ class SnowflakeHandler:
         Args:
             query (str): Select query that want to be executed.
         Returns:
-            Dataframe
+            pd.DataFrame / None : Dataframe containing the result of the query (for SELECT) / returns None for other query.
         """
         try:
             with self.conn.cursor() as cur:
