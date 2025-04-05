@@ -55,7 +55,12 @@ class S3ParquetHandler:
         """
         try:
             buffer = io.BytesIO()
-            df.to_parquet(buffer, index=index)
+            df.to_parquet(
+                buffer, 
+                index=index,
+                engine='pyarrow',
+                use_deprecated_int96_timestamps=True  
+            )
             buffer.seek(0)  # Rewind the buffer to the beginning
             self.s3_client.put_object(Bucket=bucket, Key=key, Body=buffer.getvalue())
         except Exception as e:
